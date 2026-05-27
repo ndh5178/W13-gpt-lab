@@ -6,7 +6,7 @@ UTF-8 byte-level BPE 토크나이저 과제 템플릿.
 한국어 NSMC 리뷰를 다루므로 문자열을 글자/공백 단위로 먼저 자르지 말고,
 항상 `text.encode("utf-8")`로 byte ID 시퀀스를 만든 뒤 merge를 적용하세요.
 """
-
+import json
 from pathlib import Path
 
 
@@ -121,13 +121,71 @@ class BPETokenizer:
 
         bytes와 tuple은 JSON에 바로 저장할 수 없으므로 type 정보를 함께 저장하세요.
         """
-        raise NotImplementedError("BPETokenizer.save를 구현하세요.")
+        path=Path(path)
+        data_id=[]
+        data_merge=[]
+        for id,token in self.id_to_token.items():
+            if type(token) == bytes:
+                item = {
+                    "id": id,
+                    "type": "bytes",
+                    "value": list(token),
+                }
+            elif type(token) == tuple:
+                item = {
+                    "id": id,
+                    "type": "tuple",
+                    "value": list(token),
+                }
+            elif type(token) == str:
+                item = {
+                    "id": id,
+                    "type": "str",
+                    "value": token,
+                }
+            data_id.append(item)
+        
+        for i in self.merges:
+            data_merge.append(list(i))
+        
+        data = {
+            "vocab_size": self.vocab_size,
+            "id": data_id,
+            "merges": data_merge
+        }
+        
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
     def load(self, path: str | Path):
         """
         TODO: save()로 저장한 JSON 파일을 읽어 vocabulary와 merge rule을 복원합니다.
         """
-        raise NotImplementedError("BPETokenizer.load를 구현하세요.")
+        path = Path(path)
+        data = json.loads(path.read_text(encoding="utf-8"))
+
+        self.vocab_size = data["vocab_size"]
+        self.id_to_token = {}
+        self.token_to_id = {}
+        self.merges = []
+
+        for item in data["id"]:
+            id = item["id"]
+            type_ = item["type"]
+            value = item["value"]
+            if type_ == "bytes":
+                self.id_to_token[id] = bytes(value)
+                self.token_to_id[bytes(value)] = id
+            elif type_ == "tuple":
+                self.id_to_token[id] = tuple(value)
+                self.token_to_id[tuple(value)] = id
+            elif type_ == "str":
+                self.id_to_token[id] = value
+                self.token_to_id[value] = id
+
+        for i in data["merges"]:
+            self.merges.append(tuple(i))
+        
+
 
     def encode(self, text: str, add_bos_eos: bool = False) -> list[int]:
         """
