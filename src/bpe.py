@@ -109,7 +109,7 @@ class BPETokenizer:
             pass
 
         if add_bos_eos:
-            token_ids = [self.get_bos_id()] + token_ids + [self.get_eos_isd()]
+            token_ids = [self.get_bos_id()] + token_ids + [self.get_eos_id()]
 
         return token_ids
 
