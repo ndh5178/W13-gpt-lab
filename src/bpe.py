@@ -10,7 +10,6 @@ UTF-8 byte-level BPE 토크나이저 과제 템플릿.
 from pathlib import Path
 import json
 
-
 PAD_TOKEN = "<pad>"
 UNK_TOKEN = "<unk>"
 BOS_TOKEN = "<bos>"
