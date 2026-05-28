@@ -8,6 +8,7 @@ UTF-8 byte-level BPE 토크나이저 과제 템플릿.
 """
 
 from pathlib import Path
+import json
 
 
 PAD_TOKEN = "<pad>"
@@ -51,10 +52,6 @@ class BPETokenizer:
             self.id_to_token[BYTE_OFFSET + byte_value] = bytes([byte_value])
             self.token_to_id[bytes([byte_value])] = BYTE_OFFSET + byte_value
 
-
-
-
-
     def get_pad_id(self):
         """padding 토큰 ID."""
         return SPECIAL_IDS[PAD_TOKEN]
@@ -81,7 +78,8 @@ class BPETokenizer:
         - 새 token ID를 만들고, 시퀀스의 해당 pair를 새 ID로 치환합니다.
         - `self.merges`, `self.id_to_token`, `self.token_to_id`를 갱신합니다.
         """
-        raise NotImplementedError("BPETokenizer.train을 구현하세요.")
+        
+        
 
     def save(self, path: str | Path):
         """
@@ -89,13 +87,62 @@ class BPETokenizer:
 
         bytes와 tuple은 JSON에 바로 저장할 수 없으므로 type 정보를 함께 저장하세요.
         """
-        raise NotImplementedError("BPETokenizer.save를 구현하세요.")
+        if not self.id_to_token:
+            self._init_special_tokens()
+
+        save_tokens = {}
+        for token_id, token in self.id_to_token.items():
+            if isinstance(token, bytes):
+                save_tokens[str(token_id)] = {"type": "bytes", "value":list(token)}
+            elif isinstance(token, tuple):
+                save_tokens[str(token_id)] = {"type": "tuple", "value": list(token)}
+            elif isinstance(token, str):
+                save_tokens[str(token_id)] = {"type": "str", "value": token}
+
+        save_merges = []
+        for pair in self.merges:
+            save_merges.append(list(pair))
+        
+        token_data = {
+            "vocab_size": self.vocab_size,
+            "id_to_token": save_tokens,
+            "merges": save_merges,
+        }
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(token_data, f, ensure_ascii=False, indent=2)
 
     def load(self, path: str | Path):
         """
         TODO: save()로 저장한 JSON 파일을 읽어 vocabulary와 merge rule을 복원합니다.
         """
-        raise NotImplementedError("BPETokenizer.load를 구현하세요.")
+        with open(path, "r", encoding="utf-8") as f:
+            token_data = json.load(f)
+
+        self.vocab_size = token_data["vocab_size"]
+        self.id_to_token = {}
+        self.token_to_id = {}
+
+        for token_id_str, token_info in token_data["id_to_token"].items():
+            token_id = int(token_id_str)
+            token_type = token_info["type"]
+            value = token_info["value"]
+
+            if token_type == "bytes":
+                token = bytes(value)
+            elif token_type == "tuple":
+                token = tuple(value)
+            elif token_type == "str":
+                token = value
+            else:
+                raise ValueError(f"Unknown token type: {token_type}")
+
+            self.id_to_token[token_id] = token
+            self.token_to_id[token] = token_id
+
+        self.merges = []
+        for pair in token_data["merges"]:
+            self.merges.append(tuple(pair))
 
     def encode(self, text: str, add_bos_eos: bool = False) -> list[int]:
         """
