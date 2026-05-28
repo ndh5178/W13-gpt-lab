@@ -208,8 +208,7 @@ class BPETokenizer:
         - train/load에서 얻은 merge rule을 학습 순서대로 적용합니다.
         - add_bos_eos=True이면 앞뒤에 bos/eos ID를 붙입니다.
         """
-        bytes_list = list(text.encode("utf-8"))
-        token_ids = [BYTE_OFFSET + i for i in bytes_list]
+        token_ids = [BYTE_OFFSET + i for i in list(text.encode("utf-8"))]
 
         for pair in self.merges:
             new_id = self.token_to_id[pair]
@@ -255,10 +254,10 @@ class BPETokenizer:
 
         byte_list = []
 
-        for token_id in ids:
-            if skip_special and token_id < 4:
+        for i in ids:
+            if skip_special and i < 4:
                 continue
 
-            byte_list.extend(expand_token(token_id))
+            byte_list.extend(expand_token(i))
 
         return bytes(byte_list).decode("utf-8")
