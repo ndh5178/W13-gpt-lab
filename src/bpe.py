@@ -8,7 +8,7 @@ UTF-8 byte-level BPE 토크나이저 과제 템플릿.
 """
 
 from pathlib import Path
-
+import json
 
 PAD_TOKEN = "<pad>"
 UNK_TOKEN = "<unk>"
@@ -124,7 +124,47 @@ class BPETokenizer:
 
         bytes와 tuple은 JSON에 바로 저장할 수 없으므로 type 정보를 함께 저장하세요.
         """
-        raise NotImplementedError("BPETokenizer.save를 구현하세요.")
+        vocab = []
+
+        for token_id, token in self.id_to_token.items():
+            if type(token) == bytes:
+                item = {
+                    "id": token_id,
+                    "type": "bytes",
+                    "value": list(token),
+                }
+
+            elif type(token) == tuple:
+                item = {
+                    "id": token_id,
+                    "type": "tuple",
+                    "value": list(token),
+                }
+
+            else:
+                item = {
+                    "id": token_id,
+                    "type": "str",
+                    "value": token,
+                }
+
+            vocab.append(item)
+
+        merges = []
+
+        for i in self.merges:
+            merges.append(list(i))
+
+        data = {
+            "vocab_size": self.vocab_size,
+            "id_to_token": vocab,
+            "merges": merges,
+        }
+
+        path = Path(path)
+        with path.open("w", encoding = "utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
 
     def load(self, path: str | Path):
         """
