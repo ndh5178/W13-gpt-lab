@@ -16,13 +16,7 @@ class InputEmbedding(nn.Module):
     - dropout
     """
 
-    def __init__(
-        self,
-        vocab_size: int,
-        emb_dim: int,
-        context_length: int,
-        drop_rate: float = 0.1,
-    ):
+    def __init__(self, vocab_size: int,emb_dim: int, context_length: int, drop_rate: float = 0.1,):
         super().__init__()
         self.emb_dim = emb_dim
         self.context_length = context_length
