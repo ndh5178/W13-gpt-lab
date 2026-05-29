@@ -24,7 +24,10 @@ class GPTDataset(Dataset):
         self.context_length = context_length
         self.stride = stride if stride is not None else context_length
         # TODO: 만들 수 있는 학습 샘플 개수를 self._length에 저장하세요.
-        self._length = (len(token_ids) - context_length - 1) // self.stride +1
+        if ((len(token_ids) - self.context_length - 1) // self.stride + 1) > 0:
+            self._length = (len(token_ids) - self.context_length - 1) // self.stride + 1
+        else:
+            self._length = 0
 
     def __len__(self) -> int:
         """TODO: 전체 샘플 개수를 반환합니다."""
@@ -57,14 +60,16 @@ def create_dataloader(
     num_workers: int = 0,
 ) -> DataLoader:
     """TODO: GPTDataset을 만들고 torch.utils.data.DataLoader로 감싸 반환합니다."""
-    dataset = GPTDataset(token_ids, context_length, stride=stride)
+    dataset = GPTDataset(
+        token_ids = token_ids,
+        context_length = context_length,
+        stride = stride,
+    )
 
     return DataLoader(
-    dataset,
-    batch_size=batch_size,
-    shuffle=shuffle,
-    drop_last=drop_last,
-    num_workers=num_workers,
-)
-
-    
+        dataset,
+        batch_size = batch_size,
+        drop_last = drop_last,
+        shuffle = shuffle,
+        num_workers = num_workers
+    )
