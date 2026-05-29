@@ -25,11 +25,11 @@ class MultiHeadAttention(nn.Module):
         self.n_heads = n_heads
         self.head_dim = d_model // n_heads
         # TODO: qkv projection, output projection, dropout을 정의하세요.
-        self.q_proj = nn.Linear(d_model, d_model, bias=qkv_bias)
-        self.k_proj = nn.Linear(d_model, d_model, bias=qkv_bias)
-        self.v_proj = nn.Linear(d_model, d_model, bias=qkv_bias)
+        self.q_weight_bias = nn.Linear(d_model, d_model, bias=qkv_bias)
+        self.k_weight_bias = nn.Linear(d_model, d_model, bias=qkv_bias)
+        self.v_weight_bias = nn.Linear(d_model, d_model, bias=qkv_bias)
 
-        self.out_proj = nn.Linear(d_model, d_model)
+        self.out_weight_bias = nn.Linear(d_model, d_model)
 
         self.dropout = nn.Dropout(drop_rate)
 
@@ -49,9 +49,9 @@ class MultiHeadAttention(nn.Module):
         """
         batch_size, seq_len, d_model = x.shape
 
-        q = self.q_proj(x)
-        k = self.k_proj(x)
-        v = self.v_proj(x)
+        q = self.q_weight_bias(x)
+        k = self.k_weight_bias(x)
+        v = self.v_weight_bias(x)
 
         q = q.view(batch_size, seq_len, self.n_heads, self.head_dim)
         q = q.transpose(1, 2)
@@ -60,7 +60,7 @@ class MultiHeadAttention(nn.Module):
         v = v.view(batch_size, seq_len, self.n_heads, self.head_dim)
         v = v.transpose(1, 2)
         
-        attn_scores = q @ k.transpose(-2, -1)
+        attn_scores = q @ k.transpose(2,3)
         attn_scores = attn_scores / (self.head_dim ** 0.5)
         
         if causal_mask:
@@ -75,7 +75,7 @@ class MultiHeadAttention(nn.Module):
         context = context.transpose(1, 2)
         context = context.contiguous().view(batch_size, seq_len, self.d_model)
 
-        out = self.out_proj(context)
+        out = self.out_weight_bias(context)
         out = self.dropout(out)
 
         if return_attention_weights:
