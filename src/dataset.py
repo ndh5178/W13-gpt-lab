@@ -46,7 +46,7 @@ class GPTDataset(Dataset):
         input_ids = self.token_ids[start : start + self.context_length]
         target_ids = self.token_ids[start + 1 : start + 1 + self.context_length]
 
-        return torch.tensor(input_ids, dtype=torch.long), torch.tensor(target_ids, dtype=torch.long)
+        return (torch.tensor(input_ids, dtype=torch.long), torch.tensor(target_ids, dtype=torch.long))
 
 
 def create_dataloader(
