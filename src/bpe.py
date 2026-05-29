@@ -44,13 +44,16 @@ class BPETokenizer:
         1. 특수 토큰 4개를 고정 ID 0~3에 등록합니다.
         2. byte 0~255를 ID 4~259에 bytes([byte_value]) 형태로 등록합니다.
         """
-        for i, token in enumerate(SPECIAL_TOKENS):  #enumerate -> 리스트에서 값을 꺼낼 때 번호표를 붙여서 꺼내는 매서드
-            self.id_to_token[i] = token
-            self.token_to_id[token] = i
+        for idx, token in enumerate(SPECIAL_TOKENS):
+            self.id_to_token[idx] = token
+            self.token_to_id[token] = idx
 
         for byte_value in range(NUM_BYTES):
-            self.id_to_token[BYTE_OFFSET + byte_value] = bytes([byte_value])
-            self.token_to_id[bytes([byte_value])] = BYTE_OFFSET + byte_value
+            token_id = byte_value + BYTE_OFFSET
+            byte_token = bytes([byte_value])
+
+            self.id_to_token[token_id] = byte_token
+            self.token_to_id[byte_token] = token_id
 
     def get_pad_id(self):
         """padding 토큰 ID."""
@@ -190,6 +193,7 @@ class BPETokenizer:
         - train/load에서 얻은 merge rule을 학습 순서대로 적용합니다.
         - add_bos_eos=True이면 앞뒤에 bos/eos ID를 붙입니다.
         """
+<<<<<<< HEAD
         text_byte=[]
         for token in list(text.encode("utf-8")):
             text_byte.append(self.token_to_id[bytes([token])])
@@ -208,6 +212,19 @@ class BPETokenizer:
         
         return text_byte
     
+=======
+        byte_values = text.encode("utf-8")
+        ids = []
+        for byte_value in byte_values:
+            token_id = byte_value + BYTE_OFFSET
+            ids.append(token_id)
+        if add_bos_eos:
+            ids.insert(0,self.get_bos_id())
+            ids.append(self.get_eos_id())
+        return ids
+
+
+>>>>>>> bf9cb9426e827237ed5608e7b99ae49ed9894acb
     def decode(self, ids: list[int], skip_special: bool = True) -> str:
         """
         TODO: token ID 리스트를 문자열로 복원합니다.
@@ -216,6 +233,7 @@ class BPETokenizer:
         - merge token은 원본 byte token까지 재귀적으로 펼칩니다.
         - byte를 하나씩 decode하지 말고, 마지막에 `bytes(...).decode("utf-8")`를 한 번만 호출합니다.
         """
+<<<<<<< HEAD
         skip_ids=[]
         for token in ids:
             if skip_special and token in SPECIAL_IDS.values():
@@ -234,3 +252,15 @@ class BPETokenizer:
             skip_ids[j]-=4
 
         return bytes(skip_ids).decode("utf-8")
+=======
+        byte_values = []
+        for token_id in ids:
+            if skip_special and token_id < BYTE_OFFSET:
+                continue
+
+            if BYTE_OFFSET in token_id < BYTE_OFFSET + NUM_BYTES:
+                byte_value = token_id + BYTE_OFFSET
+                byte_values.append(byte_value)
+
+        return bytes(byte_values).decode("utf-8")
+>>>>>>> bf9cb9426e827237ed5608e7b99ae49ed9894acb
