@@ -35,18 +35,19 @@ class GPTDataset(Dataset):
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        TODO: idx번째 input_ids와 target_ids를 LongTensor로 반환합니다.
+        TODO: idx번째 input_ids와 target_ids를 LongTensor로 반환합니다. #longTensor -> pytorch가 받아들일 수 있는 타입으로 변형해주는 것
 
         Returns:
             input_ids: (context_length,)
             target_ids: (context_length,)
         """
         start = idx * self.stride
+        input_ids = self.token_ids[start: start + self.context_length]
+        target_ids = self.token_ids[start + 1: start + self.context_length + 1]
+        input_tensor = torch.tensor(input_ids, dtype=torch.long)
+        target_tensor = torch.tensor(target_ids, dtype=torch.long)
 
-        input_ids = self.token_ids[start : start + self.context_length]
-        target_ids = self.token_ids[start + 1 : start + 1 + self.context_length]
-
-        return (torch.tensor(input_ids, dtype=torch.long), torch.tensor(target_ids, dtype=torch.long))
+        return input_tensor, target_tensor
 
 
 def create_dataloader(

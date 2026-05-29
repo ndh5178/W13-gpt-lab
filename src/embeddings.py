@@ -41,4 +41,10 @@ class InputEmbedding(nn.Module):
         Returns:
             (batch_size, seq_len, emb_dim)
         """
-        
+        batch_size, seq_len = x.shape
+        token_embeds = self.token_embedding(x)
+        positions = torch.arange(seq_len, device=x.device)
+        position_embeds = self.position_embedding(positions)
+        x = token_embeds + position_embeds
+       
+        return self.dropout(x)
