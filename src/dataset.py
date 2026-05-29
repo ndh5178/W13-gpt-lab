@@ -14,22 +14,12 @@ class GPTDataset(Dataset):
     - target: [11, 12, 13]
     """
 
-    def __init__(
-        self,
-        token_ids: list[int],
-        context_length: int,
-        stride: int | None = None,
-    ):
+    def __init__(self, token_ids: list[int], context_length: int, stride: int | None = None,):
         self.token_ids = token_ids
         self.context_length = context_length
         self.stride = stride if stride is not None else context_length
         # TODO: 만들 수 있는 학습 샘플 개수를 self._length에 저장하세요.
-        available = len(self.token_ids) - self.context_length - 1
-
-        if available < 0 :
-            self.context_length = 0
-        else:
-            self._length = available // self.stride + 1
+        self._length = max(0, (len(token_ids) - context_length - 1) // self.stride + 1)
 
     def __len__(self) -> int:
         """TODO: 전체 샘플 개수를 반환합니다."""
