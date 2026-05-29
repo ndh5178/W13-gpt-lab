@@ -8,7 +8,7 @@ UTF-8 byte-level BPE 토크나이저 과제 템플릿.
 """
 import json
 from pathlib import Path
-
+import json
 
 PAD_TOKEN = "<pad>"
 UNK_TOKEN = "<unk>"
@@ -44,19 +44,16 @@ class BPETokenizer:
         1. 특수 토큰 4개를 고정 ID 0~3에 등록합니다.
         2. byte 0~255를 ID 4~259에 bytes([byte_value]) 형태로 등록합니다.
         """
-        self.id_to_token[0]="<pad>"
-        self.id_to_token[1]="<unk>"
-        self.id_to_token[2]="<bos>"
-        self.id_to_token[3]="<eos>"
+        for idx, token in enumerate(SPECIAL_TOKENS):
+            self.id_to_token[idx] = token
+            self.token_to_id[token] = idx
 
-        self.token_to_id["<pad>"]=0
-        self.token_to_id["<unk>"]=1
-        self.token_to_id["<bos>"]=2
-        self.token_to_id["<eos>"]=3
+        for byte_value in range(NUM_BYTES):
+            token_id = byte_value + BYTE_OFFSET
+            byte_token = bytes([byte_value])
 
-        for i in range(256):
-            self.id_to_token[i+4]=bytes([i])
-            self.token_to_id[bytes([i])]=i+4
+            self.id_to_token[token_id] = byte_token
+            self.token_to_id[byte_token] = token_id
 
     def get_pad_id(self):
         """padding 토큰 ID."""
@@ -214,6 +211,17 @@ class BPETokenizer:
         
         return text_byte
     
+        byte_values = text.encode("utf-8")
+        ids = []
+        for byte_value in byte_values:
+            token_id = byte_value + BYTE_OFFSET
+            ids.append(token_id)
+        if add_bos_eos:
+            ids.insert(0,self.get_bos_id())
+            ids.append(self.get_eos_id())
+        return ids
+
+
     def decode(self, ids: list[int], skip_special: bool = True) -> str:
         """
         TODO: token ID 리스트를 문자열로 복원합니다.
@@ -240,3 +248,14 @@ class BPETokenizer:
             skip_ids[j]-=4
 
         return bytes(skip_ids).decode("utf-8")
+        byte_values = []
+        for token_id in ids:
+            if skip_special and token_id < BYTE_OFFSET:
+                continue
+
+            if BYTE_OFFSET in token_id < BYTE_OFFSET + NUM_BYTES:
+                byte_value = token_id + BYTE_OFFSET
+                byte_values.append(byte_value)
+
+        return bytes(byte_values).decode("utf-8")
+  

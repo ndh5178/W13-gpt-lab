@@ -27,19 +27,22 @@ class GPTDataset(Dataset):
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        TODO: idx번째 input_ids와 target_ids를 LongTensor로 반환합니다.
+        TODO: idx번째 input_ids와 target_ids를 LongTensor로 반환합니다. #longTensor -> pytorch가 받아들일 수 있는 타입으로 변형해주는 것
 
         Returns:
             input_ids: (context_length,)
             target_ids: (context_length,)
         """
         start = idx * self.stride
+        end = start + self.context_length
 
-        input_ids = self.token_ids[start : start + self.context_length]
-        target_ids = self.token_ids[start + 1 : start + 1 + self.context_length]
+        input_ids = self.token_ids[start:end]
+        target_ids = self.token_ids[start+1:end+1]
 
-        return (torch.tensor(input_ids, dtype=torch.long), torch.tensor(target_ids, dtype=torch.long))
+        input_ids = torch.tensor(input_ids, dtype=torch.long)
+        target_ids = torch.tensor(target_ids, dtype=torch.long)
 
+        return input_ids, target_ids
 
 def create_dataloader(
     token_ids: list[int],
@@ -51,8 +54,16 @@ def create_dataloader(
     num_workers: int = 0,
 ) -> DataLoader:
     """TODO: GPTDataset을 만들고 torch.utils.data.DataLoader로 감싸 반환합니다."""
+    dataset = GPTDataset(
+        token_ids = token_ids,
+        context_length = context_length,
+        stride = stride,
+    )
 
-    dataset = GPTDataset(token_ids, context_length, stride=stride)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers)
-    
-    return loader
+    return DataLoader(
+        dataset,
+        batch_size = batch_size,
+        drop_last = drop_last,
+        shuffle = shuffle,
+        num_workers = num_workers
+    )
