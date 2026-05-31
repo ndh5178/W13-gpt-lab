@@ -14,12 +14,17 @@ class GPTDataset(Dataset):
     - target: [11, 12, 13]
     """
 
-    def __init__(self, token_ids: list[int], context_length: int, stride: int | None = None,):
+    def __init__(
+        self,
+        token_ids: list[int],
+        context_length: int,
+        stride: int | None = None,
+    ):
         self.token_ids = token_ids
         self.context_length = context_length
         self.stride = stride if stride is not None else context_length
         # TODO: 만들 수 있는 학습 샘플 개수를 self._length에 저장하세요.
-        self._length = max(0, (len(token_ids) - context_length - 1) // self.stride + 1)
+        self._length = max(0, (len(token_ids) - context_length - 1) // self.stride +1)
 
     def __len__(self) -> int:
         """TODO: 전체 샘플 개수를 반환합니다."""
@@ -34,15 +39,13 @@ class GPTDataset(Dataset):
             target_ids: (context_length,)
         """
         start = idx * self.stride
-        end = start + self.context_length
+        input_ids = self.token_ids[start: start + self.context_length]
+        target_ids = self.token_ids[start + 1: start + self.context_length + 1]
+        input_tensor = torch.tensor(input_ids, dtype=torch.long)
+        target_tensor = torch.tensor(target_ids, dtype=torch.long)
 
-        input_ids = self.token_ids[start:end]
-        target_ids = self.token_ids[start+1:end+1]
+        return input_tensor, target_tensor
 
-        input_ids = torch.tensor(input_ids, dtype=torch.long)
-        target_ids = torch.tensor(target_ids, dtype=torch.long)
-
-        return input_ids, target_ids
 
 def create_dataloader(
     token_ids: list[int],
@@ -54,16 +57,14 @@ def create_dataloader(
     num_workers: int = 0,
 ) -> DataLoader:
     """TODO: GPTDataset을 만들고 torch.utils.data.DataLoader로 감싸 반환합니다."""
-    dataset = GPTDataset(
-        token_ids = token_ids,
-        context_length = context_length,
-        stride = stride,
-    )
+    dataset = GPTDataset(token_ids, context_length, stride=stride)
 
     return DataLoader(
-        dataset,
-        batch_size = batch_size,
-        drop_last = drop_last,
-        shuffle = shuffle,
-        num_workers = num_workers
-    )
+    dataset,
+    batch_size=batch_size,
+    shuffle=shuffle,
+    drop_last=drop_last,
+    num_workers=num_workers,
+)
+
+    

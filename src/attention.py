@@ -22,7 +22,7 @@ class MultiHeadAttention(nn.Module):
         d_model: int,
         n_heads: int,
         drop_rate: float = 0.1,
-        qkv_bias: bool = False,
+        qkv_bias: bool = False,    #bias는 편향값 현재 기본 code가 False를 주고 있기에 편향값을 사용하지 않는다는 뜻이다.
     ):
         super().__init__()
         if d_model % n_heads != 0:
@@ -31,7 +31,11 @@ class MultiHeadAttention(nn.Module):
         self.n_heads = n_heads
         self.head_dim = d_model // n_heads
         # TODO: qkv projection, output projection, dropout을 정의하세요.
-        raise NotImplementedError("MultiHeadAttention.__init__을 구현하세요.")
+        self.q_proj = nn.Linear(d_model, d_model, bias = qkv_bias)    #nn.Linear 기본형태  nn.Linear(in_features, out_features, bias=True)
+        self.k_proj = nn.Linear(d_model, d_model, bias = qkv_bias)
+        self.v_proj = nn.Linear
+        self.out_proj
+        self.dropout = nn.Dropout(drop_rate)
 
     def forward(
         self,
