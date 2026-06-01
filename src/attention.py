@@ -3,7 +3,7 @@
 
 import torch
 import torch.nn as nn
-
+import math
 
 class MultiHeadAttention(nn.Module):
     """
@@ -33,8 +33,8 @@ class MultiHeadAttention(nn.Module):
         # TODO: qkv projection, output projection, dropout을 정의하세요.
         self.q_proj = nn.Linear(d_model, d_model, bias = qkv_bias)    #nn.Linear 기본형태  nn.Linear(in_features, out_features, bias=True)
         self.k_proj = nn.Linear(d_model, d_model, bias = qkv_bias)
-        self.v_proj = nn.Linear
-        self.out_proj
+        self.v_proj = nn.Linear(d_model, d_model, bias = qkv_bias)
+        self.out_proj = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(drop_rate)
 
     def forward(
@@ -51,4 +51,30 @@ class MultiHeadAttention(nn.Module):
             causal_mask: True이면 미래 위치를 볼 수 없게 mask 처리
             return_attention_weights: True이면 attention weight도 함께 반환
         """
-        raise NotImplementedError("MultiHeadAttention.forward를 구현하세요.")
+        B, T, C = x.shape
+        q = self.q_proj(x)
+        k = self.k_proj(x)
+        v = self.v_proj(x)
+
+        q = q.view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
+        k = k.view(B, T, self.n_heads, self. head_dim).transpose(1, 2)
+        v = v.view(B, T, self.n_heads, self. head_dim).transpose(1, 2)
+
+        attn_scores = q @ k.transpose(-2, -1)  # 행렬곱을 맞추기 위한 순서 변경
+        attn_scores = attn_scores /math.sqrt(self.head_dim)  # 크기를 줄여서 학습을 안정적으로 sqrt -> 루트
+
+        if causal_mask:
+            mask = torch.triu(torch.ones(T, T, device = x.device), diagonal = 1).bool()  #여기서 device = x.device 목적은 하나의 장치에서 통이하기 위함 즉 cpu면 cpu에서 gpu면 gpu에서 장치 통일
+            attn_scores = attn_scores.masked_fill(mask, float("-inf"))
+        attn_weights = torch.softmax(attn_scores, dim = -1)  #현재 attention score shape(B, n_heads, T, T)여기서 dim = -1은 마지막 T
+        attn_weights = self.dropout(attn_weights) #과적합 방지 랜덤
+
+        context = attn_weights @ v
+        context = context.transpose(1, 2)
+        context = context.contiguous().view(B, T, C)
+
+        out = self.out_proj(context)
+
+        if return_attention_weights:
+            return out, attn_weights
+        return out
