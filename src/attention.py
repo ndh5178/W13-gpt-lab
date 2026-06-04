@@ -31,7 +31,11 @@ class MultiHeadAttention(nn.Module):
         self.n_heads = n_heads
         self.head_dim = d_model // n_heads
         # TODO: qkv projection, output projection, dropout을 정의하세요.
-        raise NotImplementedError("MultiHeadAttention.__init__을 구현하세요.")
+        self.q_projection = nn.Linear(d_model, d_model, bias=qkv_bias)
+        self.k_projection = nn.Linear(d_model, d_model, bias=qkv_bias)
+        self.v_projection = nn.Linear(d_model, d_model, bias=qkv_bias)
+        self.out_projection = nn.Linear(d_model, d_model)
+        self.dropout = nn.Dropout(drop_rate)
 
     def forward(
         self,
@@ -47,4 +51,36 @@ class MultiHeadAttention(nn.Module):
             causal_mask: True이면 미래 위치를 볼 수 없게 mask 처리
             return_attention_weights: True이면 attention weight도 함께 반환
         """
-        raise NotImplementedError("MultiHeadAttention.forward를 구현하세요.")
+        batch_size, seq_len, d_model = x.shape
+
+        q = self.q_projection(x)
+        k = self.k_projection(x)
+        v = self.v_projection(x)
+
+        q = q.reshape(batch_size, seq_len, self.n_heads, self.head_dim)
+        q = q.transpose(1, 2)
+
+        k = k.reshape(batch_size, seq_len, self.n_heads, self.head_dim)
+        k = k.transpose(1, 2)
+
+        v = v.reshape(batch_size, seq_len, self.n_heads, self.head_dim)
+        v = v.transpose(1, 2)
+
+        attn_scores = (q @ k.transpose(-2, -1)) / (self.head_dim**0.5)
+        
+        if causal_mask:
+            mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device, dtype=torch.bool), diagonal=1)
+            attn_scores = attn_scores.masked_fill(mask, float("-inf"))
+
+        attn_weights = torch.softmax(attn_scores, dim=-1)
+        attn_weights = self.dropout(attn_weights)
+
+        context = attn_weights @ v
+        context = context.transpose(1, 2).contiguous().view(batch_size, seq_len, d_model)
+
+        out = self.out_projection(context)
+        out = self.dropout(out)
+
+        if return_attention_weights:
+            return out, attn_weights
+        return out
