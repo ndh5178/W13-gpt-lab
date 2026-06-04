@@ -23,7 +23,7 @@ class LayerNorm(nn.Module):
         self.eps = eps
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """TODO: 마지막 차원의 평균과 분산으로 정규화한 뒤 gamma/beta를 적용합니다."""
+        """ 마지막 차원의 평균과 분산으로 정규화한 뒤 gamma/beta를 적용합니다."""
         mean = x.mean(dim = -1, keepdim = True)  #평균 구하기
         var = x.var(dim = -1, keepdim = True, unbiased = False)  #분산 구하기
         x_norm = (x - mean) / torch.sqrt(var + self.eps)  #평균을 빼고 표주편차로 나누기
@@ -34,7 +34,7 @@ class GELU(nn.Module):
     """GPT FeedForward에서 사용하는 GELU 활성화 함수."""
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """TODO: tanh 근사식 또는 torch 연산으로 GELU를 구현합니다."""
+        """ tanh 근사식 또는 torch 연산으로 GELU를 구현합니다."""
         return F.gelu(x)
 
 
@@ -43,7 +43,7 @@ class FeedForward(nn.Module):
 
     def __init__(self, d_model: int, dropout: float = 0.1, mult: int = 4):
         super().__init__()
-        # TODO: d_model -> mult*d_model -> d_model 구조의 작은 MLP를 정의하세요.
+        #  d_model -> mult*d_model -> d_model 구조의 작은 MLP를 정의하세요.
         self.net = nn.Sequential(
             nn.Linear(d_model, mult * d_model),
             GELU(),
@@ -52,7 +52,7 @@ class FeedForward(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """TODO: FeedForward 네트워크를 통과시킵니다."""
+        """ FeedForward 네트워크를 통과시킵니다."""
         return self.net(x)
 
 
@@ -70,7 +70,7 @@ class TransformerBlock(nn.Module):
         qkv_bias: bool = False,
     ):
         super().__init__()
-        # TODO: attention, ffn, layernorm, dropout을 정의하세요.
+        #  attention, ffn, layernorm, dropout을 정의하세요.
         self.attn = MultiHeadAttention(d_model, n_heads, drop_rate = drop_rate, qkv_bias = qkv_bias)
         self.ffn = FeedForward(d_model, dropout =drop_rate)
         self.ln1 = LayerNorm(d_model)
@@ -78,7 +78,7 @@ class TransformerBlock(nn.Module):
         self.dropout = nn.Dropout(drop_rate)
 
     def forward(self, x: torch.Tensor, causal_mask: bool = True) -> torch.Tensor:
-        """TODO: attention과 ffn을 residual connection으로 연결합니다."""
+        """ attention과 ffn을 residual connection으로 연결합니다."""
         attn_out = self.attn(self.ln1(x), causal_mask = causal_mask)
         x = x + self.dropout(attn_out)
 
@@ -94,7 +94,7 @@ class GPTModel(nn.Module):
     def __init__(self, config: dict):
         super().__init__()
         self.config = config
-        # TODO: embedding, blocks, final layernorm, lm_head를 정의하세요.
+        #  embedding, blocks, final layernorm, lm_head를 정의하세요.
         self.embedding = InputEmbedding(
             vocab_size=config["vocab_size"],
             emb_dim=config["emb_dim"],
@@ -121,7 +121,7 @@ class GPTModel(nn.Module):
         targets: torch.Tensor | None = None,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """
-        TODO: logits를 만들고, targets가 있으면 cross entropy loss도 함께 반환합니다.
+         logits를 만들고, targets가 있으면 cross entropy loss도 함께 반환합니다.
 
         Returns:
             targets가 None이면 logits
@@ -150,7 +150,7 @@ def generate_text_simple(
     max_new_tokens: int,
     context_size: int,
 ) -> torch.Tensor:
-    """TODO: greedy 방식으로 max_new_tokens만큼 다음 토큰을 이어 붙입니다."""
+    """ greedy 방식으로 max_new_tokens만큼 다음 토큰을 이어 붙입니다."""
     for _ in range(max_new_tokens):
         idx_cond = idx[:, -context_size:]
         with torch.no_grad():

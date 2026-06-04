@@ -30,7 +30,7 @@ class MultiHeadAttention(nn.Module):
         self.d_model = d_model
         self.n_heads = n_heads
         self.head_dim = d_model // n_heads
-        # TODO: qkv projection, output projection, dropout을 정의하세요.
+        #  qkv projection, output projection, dropout을 정의하세요.
         self.q_proj = nn.Linear(d_model, d_model, bias = qkv_bias)    #nn.Linear 기본형태  nn.Linear(in_features, out_features, bias=True)
         self.k_proj = nn.Linear(d_model, d_model, bias = qkv_bias)
         self.v_proj = nn.Linear(d_model, d_model, bias = qkv_bias)
@@ -44,7 +44,7 @@ class MultiHeadAttention(nn.Module):
         return_attention_weights: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """
-        TODO: multi-head attention forward를 구현합니다.
+         multi-head attention forward를 구현합니다.
 
         Args:
             x: (batch_size, seq_len, d_model)

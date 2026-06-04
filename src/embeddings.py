@@ -26,14 +26,14 @@ class InputEmbedding(nn.Module):
         super().__init__()
         self.emb_dim = emb_dim
         self.context_length = context_length
-        # TODO: token_embedding, position_embedding, dropout을 정의하세요.
+        #  token_embedding, position_embedding, dropout을 정의하세요.
         self.token_embedding = nn.Embedding(vocab_size, emb_dim)      #nn. torch 안에 있는 신경망 부품 모음집 호출
         self.position_embedding = nn.Embedding(context_length, emb_dim)
         self.dropout = nn.Dropout(drop_rate)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        TODO: token embedding과 position embedding을 더한 뒤 dropout을 적용합니다.
+         token embedding과 position embedding을 더한 뒤 dropout을 적용합니다.
 
         Args:
             x: (batch_size, seq_len) token IDs

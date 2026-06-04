@@ -23,16 +23,16 @@ class GPTDataset(Dataset):
         self.token_ids = token_ids
         self.context_length = context_length
         self.stride = stride if stride is not None else context_length
-        # TODO: 만들 수 있는 학습 샘플 개수를 self._length에 저장하세요.
+        #  만들 수 있는 학습 샘플 개수를 self._length에 저장하세요.
         self._length = max(0, (len(token_ids) - context_length - 1) // self.stride +1)
 
     def __len__(self) -> int:
-        """TODO: 전체 샘플 개수를 반환합니다."""
+        """ 전체 샘플 개수를 반환합니다."""
         return self._length
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        TODO: idx번째 input_ids와 target_ids를 LongTensor로 반환합니다. #longTensor -> pytorch가 받아들일 수 있는 타입으로 변형해주는 것
+         idx번째 input_ids와 target_ids를 LongTensor로 반환합니다. #longTensor -> pytorch가 받아들일 수 있는 타입으로 변형해주는 것
 
         Returns:
             input_ids: (context_length,)
@@ -56,7 +56,7 @@ def create_dataloader(
     shuffle: bool = True,
     num_workers: int = 0,
 ) -> DataLoader:
-    """TODO: GPTDataset을 만들고 torch.utils.data.DataLoader로 감싸 반환합니다."""
+    """ GPTDataset을 만들고 torch.utils.data.DataLoader로 감싸 반환합니다."""
     dataset = GPTDataset(token_ids, context_length, stride=stride)
 
     return DataLoader(

@@ -138,6 +138,7 @@ def generate_and_print_sample(
 ) -> None:
     """start_context를 encode하고 generate 후 decode하여 출력합니다."""
     model.eval()
+    
     encoded = tokenizer.encode(start_context, add_bos_eos=False)
     idx = torch.tensor(encoded, dtype=torch.long, device=device).unsqueeze(0)
     out = generate(
@@ -202,19 +203,20 @@ def train_model(
                     context_size=model.config["context_length"],
                 )
 
-            if ckpt_freq is not None and ckpt_freq > 0 and global_step % ckpt_freq == 0:
-                save_checkpoint(
-                    model=model,
-                    optimizer=optimizer,
-                    epoch=epoch,
-                    global_step=global_step,
-                    path=f"checkpoint_step_{global_step}.pt",
-                )
 
         if num_train_batches > 0:
             train_losses.append(total_train_loss / num_train_batches)
         else:
             train_losses.append(float("nan"))
+
+        if ckpt_freq is not None and ckpt_freq > 0 and (epoch + 1) % ckpt_freq == 0:
+            save_checkpoint(
+                model=model,
+                optimizer=optimizer,
+                epoch=epoch,
+                global_step=global_step,
+                path=f"checkpoint_epoch_{epoch + 1}.pt",
+            )
 
     return train_losses
 
