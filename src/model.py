@@ -3,6 +3,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 try:
     from .attention import MultiHeadAttention
@@ -35,8 +36,7 @@ class GELU(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """TODO: tanh 근사식 또는 torch 연산으로 GELU를 구현합니다."""
-        out = 0.5 * x * (1 + torch.tanh(torch.sqrt(torch.tensor(2.0 / torch.pi,device=x.device)) * (x + 0.044715 * torch.pow(x, 3))))
-        return out
+        return F.gelu(x)
 
 
 class FeedForward(nn.Module):
@@ -45,7 +45,7 @@ class FeedForward(nn.Module):
     def __init__(self, d_model: int, dropout: float = 0.1, mult: int = 4):
         super().__init__()
         # TODO: d_model -> mult*d_model -> d_model 구조의 작은 MLP를 정의하세요.
-        self.mlp=nn.Sequential(
+        self.net = nn.Sequential(
             nn.Linear(d_model, mult * d_model),
             GELU(),
             nn.Linear(mult * d_model, d_model),
@@ -54,8 +54,7 @@ class FeedForward(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """TODO: FeedForward 네트워크를 통과시킵니다."""
-        return self.mlp(x)
-        
+        return self.net(x)
 
 
 class TransformerBlock(nn.Module):
@@ -110,9 +109,8 @@ class GPTModel(nn.Module):
             context_length=config["context_length"],
             drop_rate=config["drop_rate"],
         )
-
-        self.blocks = nn.Sequential(
-            *[
+        self.blocks = nn.ModuleList(
+            [
                 TransformerBlock(
                     d_model=config["emb_dim"],
                     n_heads=config["n_heads"],
@@ -122,7 +120,6 @@ class GPTModel(nn.Module):
                 for _ in range(config["n_layers"])
             ]
         )
-
         self.final_norm = LayerNorm(config["emb_dim"])
         self.lm_head = nn.Linear(config["emb_dim"], config["vocab_size"], bias=False)
 
@@ -139,17 +136,19 @@ class GPTModel(nn.Module):
             targets가 있으면 (loss, logits)
         """
         x = self.embedding(idx)
-        x = self.blocks(x)
+        for block in self.blocks:
+            x = block(x, causal_mask=True)
         x = self.final_norm(x)
         logits = self.lm_head(x)
 
         if targets is None:
             return logits
 
-        loss = torch.nn.functional.cross_entropy(
+        loss = F.cross_entropy(
             logits.reshape(-1, logits.size(-1)),
             targets.reshape(-1),
         )
+        return loss, logits
 
         return loss, logits
         
@@ -163,14 +162,11 @@ def generate_text_simple(
     """TODO: greedy 방식으로 max_new_tokens만큼 다음 토큰을 이어 붙입니다."""
     for _ in range(max_new_tokens):
         idx_cond = idx[:, -context_size:]
-
         with torch.no_grad():
             logits = model(idx_cond)
-
-        logits = logits[:, -1, :]
-
-        idx_next = torch.argmax(logits, dim=-1, keepdim=True)
-
+        if isinstance(logits, tuple):
+            logits = logits[1]
+        next_logits = logits[:, -1, :]
+        idx_next = torch.argmax(next_logits, dim=-1, keepdim=True)
         idx = torch.cat((idx, idx_next), dim=1)
-
     return idx

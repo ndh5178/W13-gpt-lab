@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """NSMC 감성 분류 미세 조정 과제 템플릿."""
 
+import csv
+import json
+import random
+import re
 from pathlib import Path
 import json
 import random
@@ -24,65 +28,53 @@ def make_sentiment_dataset(
     output_dir: str | Path | None = None,
 ) -> tuple[list[dict], list[dict], list[dict]]:
     """
-    TODO: NSMC TSV를 읽어 train/validation/test 감성 분류 데이터를 만듭니다.
+    NSMC TSV를 읽어 train/validation/test 감성 분류 데이터를 만듭니다.
 
     반환 형식:
         [{"text": "리뷰", "label": 0 또는 1}, ...]
     """
-    def read_nsmc_tsv(path: str | Path | None) -> list[dict]:
-        if path is None:
-            return []
+    def clean_text(text: str | None) -> str:
+        if text is None:
+            return ""
+        return re.sub(r"\s+", " ", text).strip()
 
-        rows = []
-        path = Path(path)
-        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines()):
-            if line_no == 0:
-                continue
-            parts = line.split("\t")
-            if len(parts) < 3:
-                continue
-
-            document = "\t".join(parts[1:-1]).strip()
-            if not document:
-                continue
-
-            try:
-                label = int(parts[-1])
-            except ValueError:
-                continue
-            if label not in {0, 1}:
-                continue
-
-            rows.append({"text": document, "label": label})
+    def read_nsmc_tsv(path: str | Path) -> list[dict]:
+        rows: list[dict] = []
+        with Path(path).open("r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f, delimiter="\t")
+            for row in reader:
+                text = clean_text(row.get("document"))
+                label = row.get("label")
+                if not text or label not in {"0", "1"}:
+                    continue
+                rows.append({"text": text, "label": int(label)})
         return rows
 
-    train_rows = read_nsmc_tsv(train_tsv_path)
-    test_data = read_nsmc_tsv(test_tsv_path)
+    def write_jsonl(path: Path, rows: list[dict]) -> None:
+        with path.open("w", encoding="utf-8") as f:
+            for row in rows:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
+    rows = read_nsmc_tsv(train_tsv_path)
     rng = random.Random(seed)
-    rng.shuffle(train_rows)
+    rng.shuffle(rows)
 
-    if len(train_rows) > 1 and val_ratio > 0:
-        val_size = max(1, int(len(train_rows) * val_ratio))
-    else:
+    if val_ratio <= 0 or len(rows) == 0:
         val_size = 0
-    val_size = min(val_size, len(train_rows))
+    else:
+        val_size = max(1, int(len(rows) * val_ratio))
+        val_size = min(val_size, len(rows))
 
-    val_data = train_rows[:val_size]
-    train_data = train_rows[val_size:]
+    val_data = rows[:val_size]
+    train_data = rows[val_size:]
+    test_data = read_nsmc_tsv(test_tsv_path) if test_tsv_path is not None else []
 
     if output_dir is not None:
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        splits = {
-            "nsmc_sentiment_train.jsonl": train_data,
-            "nsmc_sentiment_val.jsonl": val_data,
-            "nsmc_sentiment_test.jsonl": test_data,
-        }
-        for filename, split_rows in splits.items():
-            with (output_dir / filename).open("w", encoding="utf-8") as f:
-                for row in split_rows:
-                    f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        write_jsonl(output_path / "nsmc_sentiment_train.jsonl", train_data)
+        write_jsonl(output_path / "nsmc_sentiment_val.jsonl", val_data)
+        write_jsonl(output_path / "nsmc_sentiment_test.jsonl", test_data)
 
     return train_data, val_data, test_data
 
@@ -152,28 +144,23 @@ class GPTForSequenceClassification(nn.Module):
         labels: torch.Tensor | None = None,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """
-        TODO: GPT hidden state에서 문장 대표 벡터를 뽑아 분류 logits를 만듭니다.
+        GPT hidden state에서 문장 대표 벡터를 뽑아 분류 logits를 만듭니다.
 
         labels가 있으면 (loss, logits), 없으면 logits를 반환합니다.
         """
-        hidden_states = self.gpt.embedding(input_ids)
-        hidden_states = self.gpt.blocks(hidden_states)
-        hidden_states = self.gpt.final_norm(hidden_states)
+        x = self.gpt.embedding(input_ids)
+        for block in self.gpt.blocks:
+            x = block(x, causal_mask=True)
+        x = self.gpt.final_norm(x)
 
-        attention_mask = input_ids.ne(0)
-        last_token_idx = attention_mask.sum(dim=1) - 1
-        last_token_idx = last_token_idx.clamp(min=0)
-        batch_idx = torch.arange(input_ids.size(0), device=input_ids.device)
-
-        pooled = hidden_states[batch_idx, last_token_idx]
-        pooled = self.dropout(pooled)
-        logits = self.classifier(pooled)
+        cls_hidden = x[:, -1, :]
+        cls_hidden = self.dropout(cls_hidden)
+        logits = self.classifier(cls_hidden)
 
         if labels is None:
             return logits
 
-        labels = labels.to(input_ids.device)
-        loss = F.cross_entropy(logits, labels)
+        loss = F.cross_entropy(logits, labels.long())
         return loss, logits
 
 
@@ -183,31 +170,31 @@ def train_epoch_sentiment(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
 ) -> tuple[float, float]:
-    """TODO: 감성 분류 모델을 1 epoch 훈련하고 (평균 loss, accuracy)를 반환합니다."""
-    model.to(device)
+    """감성 분류 모델을 1 epoch 훈련하고 (평균 loss, accuracy)를 반환합니다."""
     model.train()
+    model.to(device)
 
     total_loss = 0.0
     total_correct = 0
-    total_examples = 0
+    total_samples = 0
 
     for input_ids, labels in train_loader:
         input_ids = input_ids.to(device)
-        labels = labels.to(device)
+        labels = labels.to(device).long()
 
         optimizer.zero_grad()
         loss, logits = model(input_ids, labels=labels)
         loss.backward()
         optimizer.step()
 
-        batch_size = labels.size(0)
+        batch_size = input_ids.size(0)
         total_loss += loss.item() * batch_size
         total_correct += (logits.argmax(dim=-1) == labels).sum().item()
-        total_examples += batch_size
+        total_samples += batch_size
 
-    if total_examples == 0:
-        return 0.0, 0.0
-    return total_loss / total_examples, total_correct / total_examples
+    if total_samples == 0:
+        return float("nan"), float("nan")
+    return total_loss / total_samples, total_correct / total_samples
 
 
 def evaluate_sentiment(
@@ -215,29 +202,30 @@ def evaluate_sentiment(
     data_loader,
     device: torch.device,
 ) -> tuple[float, float]:
-    """TODO: 감성 분류 모델을 평가하고 (평균 loss, accuracy)를 반환합니다."""
-    model.to(device)
+    """감성 분류 모델을 평가하고 (평균 loss, accuracy)를 반환합니다."""
     was_training = model.training
     model.eval()
+    model.to(device)
 
     total_loss = 0.0
     total_correct = 0
-    total_examples = 0
+    total_samples = 0
 
     with torch.no_grad():
         for input_ids, labels in data_loader:
             input_ids = input_ids.to(device)
-            labels = labels.to(device)
+            labels = labels.to(device).long()
 
             loss, logits = model(input_ids, labels=labels)
-            batch_size = labels.size(0)
+
+            batch_size = input_ids.size(0)
             total_loss += loss.item() * batch_size
             total_correct += (logits.argmax(dim=-1) == labels).sum().item()
-            total_examples += batch_size
+            total_samples += batch_size
 
     if was_training:
         model.train()
 
-    if total_examples == 0:
-        return 0.0, 0.0
-    return total_loss / total_examples, total_correct / total_examples
+    if total_samples == 0:
+        return float("nan"), float("nan")
+    return total_loss / total_samples, total_correct / total_samples

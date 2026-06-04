@@ -5,6 +5,7 @@ data/nsmc_lm_*.txt
 data/nsmc_sentiment_*.jsonl
 data/vocab_*.json
 data/nsmc_bpe_vocab_*.json
+data/*vocab*.json
 data/*.jsonl
 
 # Python
@@ -36,6 +37,9 @@ htmlcov/
 *.pth
 checkpoints/
 
+# 로컬 실험 스크립트
+experiment_*.py
+
 # 과제 안내문 (로컬/Notion 전용, repo에 미포함)
 notion/
 MINI_GPT_SRC_GUIDE.md
@@ -44,5 +48,6 @@ MINI_GPT_SRC_GUIDE.md
 .DS_Store
 *.swp
 *~
+figures/
 
 md/
