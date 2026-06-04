@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
-"""NSMC 감성 분류 미세 조정 과제 템플릿."""
+"""NSMC 감성 분류 미세 조정 유틸리티."""
 
 import csv
 import json
 import random
 import re
 from pathlib import Path
-import json
-import random
 
 import torch
 import torch.nn as nn
@@ -18,6 +16,33 @@ try:
     from .model import GPTModel
 except ImportError:
     from model import GPTModel
+
+
+def _read_nsmc_tsv(path: str | Path) -> list[dict]:
+    """NSMC TSV 파일을 {text, label} 딕셔너리 리스트로 읽습니다."""
+    rows = []
+    with Path(path).open("r", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        for row in reader:
+            text = (row.get("document") or "").strip()
+            label = row.get("label")
+            if not text or label is None:
+                continue
+            try:
+                label_id = int(label)
+            except ValueError:
+                continue
+            if label_id not in (0, 1):
+                continue
+            rows.append({"text": text, "label": label_id})
+    return rows
+
+
+def _write_jsonl(path: Path, rows: list[dict]) -> None:
+    """딕셔너리 리스트를 JSONL 파일로 저장합니다."""
+    with path.open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def make_sentiment_dataset(
@@ -33,50 +58,29 @@ def make_sentiment_dataset(
     반환 형식:
         [{"text": "리뷰", "label": 0 또는 1}, ...]
     """
-    def clean_text(text: str | None) -> str:
-        if text is None:
-            return ""
-        return re.sub(r"\s+", " ", text).strip()
+    train_rows = _read_nsmc_tsv(train_tsv_path)
+    test_rows = _read_nsmc_tsv(test_tsv_path) if test_tsv_path is not None else []
 
-    def read_nsmc_tsv(path: str | Path) -> list[dict]:
-        rows: list[dict] = []
-        with Path(path).open("r", encoding="utf-8", newline="") as f:
-            reader = csv.DictReader(f, delimiter="\t")
-            for row in reader:
-                text = clean_text(row.get("document"))
-                label = row.get("label")
-                if not text or label not in {"0", "1"}:
-                    continue
-                rows.append({"text": text, "label": int(label)})
-        return rows
-
-    def write_jsonl(path: Path, rows: list[dict]) -> None:
-        with path.open("w", encoding="utf-8") as f:
-            for row in rows:
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
-
-    rows = read_nsmc_tsv(train_tsv_path)
     rng = random.Random(seed)
-    rng.shuffle(rows)
+    rng.shuffle(train_rows)
 
-    if val_ratio <= 0 or len(rows) == 0:
+    if val_ratio <= 0 or len(train_rows) <= 1:
         val_size = 0
     else:
-        val_size = max(1, int(len(rows) * val_ratio))
-        val_size = min(val_size, len(rows))
+        val_size = int(len(train_rows) * val_ratio)
+        val_size = max(1, min(val_size, len(train_rows) - 1))
 
-    val_data = rows[:val_size]
-    train_data = rows[val_size:]
-    test_data = read_nsmc_tsv(test_tsv_path) if test_tsv_path is not None else []
+    val_rows = train_rows[:val_size]
+    train_rows = train_rows[val_size:]
 
     if output_dir is not None:
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
-        write_jsonl(output_path / "nsmc_sentiment_train.jsonl", train_data)
-        write_jsonl(output_path / "nsmc_sentiment_val.jsonl", val_data)
-        write_jsonl(output_path / "nsmc_sentiment_test.jsonl", test_data)
+        _write_jsonl(output_path / "nsmc_sentiment_train.jsonl", train_rows)
+        _write_jsonl(output_path / "nsmc_sentiment_val.jsonl", val_rows)
+        _write_jsonl(output_path / "nsmc_sentiment_test.jsonl", test_rows)
 
-    return train_data, val_data, test_data
+    return train_rows, val_rows, test_rows
 
 
 class ReviewSentimentDataset(Dataset):
@@ -134,7 +138,7 @@ class GPTForSequenceClassification(nn.Module):
         super().__init__()
         self.gpt = gpt_model
         self.num_labels = num_labels
-        # TODO: dropout과 classifier를 정의하세요. classifier 입력 차원은 gpt_model.config["emb_dim"]입니다.
+        self.pad_id = 0
         self.dropout = nn.Dropout(drop_rate)
         self.classifier = nn.Linear(gpt_model.config["emb_dim"], num_labels)
 
@@ -148,19 +152,23 @@ class GPTForSequenceClassification(nn.Module):
 
         labels가 있으면 (loss, logits), 없으면 logits를 반환합니다.
         """
-        x = self.gpt.embedding(input_ids)
+        hidden = self.gpt.embedding(input_ids)
         for block in self.gpt.blocks:
-            x = block(x, causal_mask=True)
-        x = self.gpt.final_norm(x)
+            hidden = block(hidden, causal_mask=True)
+        hidden = self.gpt.final_norm(hidden)
 
-        cls_hidden = x[:, -1, :]
-        cls_hidden = self.dropout(cls_hidden)
-        logits = self.classifier(cls_hidden)
+        non_pad_counts = (input_ids != self.pad_id).sum(dim=1)
+        last_token_idx = torch.clamp(non_pad_counts - 1, min=0)
+        batch_idx = torch.arange(input_ids.size(0), device=input_ids.device)
+        pooled = hidden[batch_idx, last_token_idx]
+
+        logits = self.classifier(self.dropout(pooled))
 
         if labels is None:
             return logits
 
-        loss = F.cross_entropy(logits, labels.long())
+        labels = labels.long()
+        loss = F.cross_entropy(logits, labels)
         return loss, logits
 
 

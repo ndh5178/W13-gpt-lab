@@ -3,7 +3,7 @@
 
 import torch
 import torch.nn as nn
-
+import math
 
 class MultiHeadAttention(nn.Module):
     """
@@ -17,7 +17,13 @@ class MultiHeadAttention(nn.Module):
     - attention weight와 V를 곱한 뒤 head를 다시 합치기
     """
 
-    def __init__(self, d_model: int, n_heads: int, drop_rate: float = 0.1, qkv_bias: bool = False):
+    def __init__(
+        self,
+        d_model: int,
+        n_heads: int,
+        drop_rate: float = 0.1,
+        qkv_bias: bool = False,    #bias는 편향값 현재 기본 code가 False를 주고 있기에 편향값을 사용하지 않는다는 뜻이다.
+    ):
         super().__init__()
         if d_model % n_heads != 0:
             raise ValueError("d_model must be divisible by n_heads")
@@ -38,7 +44,7 @@ class MultiHeadAttention(nn.Module):
         return_attention_weights: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """
-        TODO: multi-head attention forward를 구현합니다.
+         multi-head attention forward를 구현합니다.
 
         Args:
             x: (batch_size, seq_len, d_model)

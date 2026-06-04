@@ -129,7 +129,7 @@ class GPTModel(nn.Module):
         targets: torch.Tensor | None = None,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """
-        TODO: logits를 만들고, targets가 있으면 cross entropy loss도 함께 반환합니다.
+         logits를 만들고, targets가 있으면 cross entropy loss도 함께 반환합니다.
 
         Returns:
             targets가 None이면 logits
