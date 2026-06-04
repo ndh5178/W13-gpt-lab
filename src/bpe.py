@@ -35,11 +35,12 @@ class BPETokenizer:
         self.id_to_token = {}
         self.token_to_id = {}
         self.merges = []
+        self._merge_ranks = None
         self._init_special_tokens()
 
     def _init_special_tokens(self):
         """
-        TODO:
+        
         1. 특수 토큰 4개를 고정 ID 0~3에 등록합니다.
         2. byte 0~255를 ID 4~259에 bytes([byte_value]) 형태로 등록합니다.
         """
@@ -72,7 +73,7 @@ class BPETokenizer:
 
     def train(self, corpus: str):
         """
-        TODO: 코퍼스에서 BPE merge rule과 vocabulary를 학습합니다.
+         코퍼스에서 BPE merge rule과 vocabulary를 학습합니다.
 
         구현 힌트:
         - `corpus.encode("utf-8")`로 byte ID 시퀀스를 만듭니다.
@@ -107,6 +108,7 @@ class BPETokenizer:
             self.token_to_id[max_pair]=new_id
             self.id_to_token[new_id]=max_pair
             self.merges.append(max_pair)
+            self._merge_ranks = None
 
             i = 0
             while i < len(id_corpus):
@@ -118,7 +120,7 @@ class BPETokenizer:
 
     def save(self, path: str | Path):
         """
-        TODO: vocabulary와 merge rule을 JSON 파일로 저장합니다.
+         vocabulary와 merge rule을 JSON 파일로 저장합니다.
 
         bytes와 tuple은 JSON에 바로 저장할 수 없으므로 type 정보를 함께 저장하세요.
         """
@@ -159,7 +161,7 @@ class BPETokenizer:
 
     def load(self, path: str | Path):
         """
-        TODO: save()로 저장한 JSON 파일을 읽어 vocabulary와 merge rule을 복원합니다.
+         save()로 저장한 JSON 파일을 읽어 vocabulary와 merge rule을 복원합니다.
         """
         path = Path(path)
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -185,12 +187,18 @@ class BPETokenizer:
 
         for i in data["merges"]:
             self.merges.append(tuple(i))
+        self._merge_ranks = None
         
+
+    def _get_merge_ranks(self):
+        if self._merge_ranks is None or len(self._merge_ranks) != len(self.merges):
+            self._merge_ranks = {pair: rank for rank, pair in enumerate(self.merges)}
+        return self._merge_ranks
 
 
     def encode(self, text: str, add_bos_eos: bool = False) -> list[int]:
         """
-        TODO: 문자열을 token ID 리스트로 변환합니다.
+         문자열을 token ID 리스트로 변환합니다.
 
         구현 힌트:
         - 먼저 UTF-8 byte ID 리스트를 만듭니다.
@@ -201,26 +209,51 @@ class BPETokenizer:
         for token in list(text.encode("utf-8")):
             text_byte.append(self.token_to_id[bytes([token])])
 
-        for rule in self.merges:
-            i=0
-            while i<len(text_byte):
-                if i < len(text_byte) - 1 and (text_byte[i], text_byte[i + 1]) == rule:
-                    text_byte[i:i + 2] = [self.token_to_id[(text_byte[i], text_byte[i + 1])]]
-                    i+=1
-                else:
-                    i+=1
+        merge_ranks = self._get_merge_ranks()
 
+        while len(text_byte) > 1:
+            best_rank = None
+            best_i = None
+            best_pair = None
+
+            for i in range(len(text_byte) - 1):
+                pair = (text_byte[i], text_byte[i + 1])
+                rank = merge_ranks.get(pair)
+                if rank is not None and (best_rank is None or rank < best_rank):
+                    best_rank = rank
+                    best_i = i
+                    best_pair = pair
+
+            if best_i is None:
+                break
+
+            text_byte[best_i:best_i + 2] = [self.token_to_id[best_pair]]
+        
         if add_bos_eos:
             text_byte = [self.token_to_id["<bos>"]] + text_byte + [self.token_to_id["<eos>"]]
-
+        
         return text_byte
-    def decode(self, ids: list[int], skip_special: bool = True) -> str:
+    
+        byte_values = text.encode("utf-8")
+        ids = []
+        for byte_value in byte_values:
+            token_id = byte_value + BYTE_OFFSET
+            ids.append(token_id)
+        if add_bos_eos:
+            ids.insert(0,self.get_bos_id())
+            ids.append(self.get_eos_id())
+        return ids
+
+
+    def decode(self, ids: list[int], skip_special: bool = True, errors: str = "replace") -> str:
         """
-        TODO: token ID 리스트를 문자열로 복원합니다.
+         token ID 리스트를 문자열로 복원합니다.
 
         주의:
         - merge token은 원본 byte token까지 재귀적으로 펼칩니다.
         - byte를 하나씩 decode하지 말고, 마지막에 `bytes(...).decode("utf-8")`를 한 번만 호출합니다.
+        - 생성 초반 모델은 UTF-8로 완성되지 않는 byte 조합을 만들 수 있으므로 기본값은
+          errors="replace"로 안전하게 문자열화합니다.
         """
         skip_ids=[]
         for token in ids:
@@ -240,3 +273,14 @@ class BPETokenizer:
             skip_ids[j]-=4
 
         return bytes(skip_ids).decode("utf-8", errors="replace")
+        byte_values = []
+        for token_id in ids:
+            if skip_special and token_id < BYTE_OFFSET:
+                continue
+
+            if BYTE_OFFSET in token_id < BYTE_OFFSET + NUM_BYTES:
+                byte_value = token_id + BYTE_OFFSET
+                byte_values.append(byte_value)
+
+        return bytes(byte_values).decode("utf-8")
+  

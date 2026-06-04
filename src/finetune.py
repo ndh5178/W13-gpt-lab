@@ -1,17 +1,48 @@
 # -*- coding: utf-8 -*-
-"""NSMC 감성 분류 미세 조정 과제 템플릿."""
+"""NSMC 감성 분류 미세 조정 유틸리티."""
 
+import csv
+import json
 import random
+import re
 from pathlib import Path
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 
 try:
     from .model import GPTModel
 except ImportError:
     from model import GPTModel
+
+
+def _read_nsmc_tsv(path: str | Path) -> list[dict]:
+    """NSMC TSV 파일을 {text, label} 딕셔너리 리스트로 읽습니다."""
+    rows = []
+    with Path(path).open("r", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        for row in reader:
+            text = (row.get("document") or "").strip()
+            label = row.get("label")
+            if not text or label is None:
+                continue
+            try:
+                label_id = int(label)
+            except ValueError:
+                continue
+            if label_id not in (0, 1):
+                continue
+            rows.append({"text": text, "label": label_id})
+    return rows
+
+
+def _write_jsonl(path: Path, rows: list[dict]) -> None:
+    """딕셔너리 리스트를 JSONL 파일로 저장합니다."""
+    with path.open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def make_sentiment_dataset(
@@ -22,37 +53,34 @@ def make_sentiment_dataset(
     output_dir: str | Path | None = None,
 ) -> tuple[list[dict], list[dict], list[dict]]:
     """
-    TODO: NSMC TSV를 읽어 train/validation/test 감성 분류 데이터를 만듭니다.
+    NSMC TSV를 읽어 train/validation/test 감성 분류 데이터를 만듭니다.
 
     반환 형식:
         [{"text": "리뷰", "label": 0 또는 1}, ...]
     """
-    def read_tsv(path):
-        rows = []
-        with open(path, encoding="utf-8") as f:
-            next(f)  # 헤더 스킵
-            for line in f:
-                parts = line.strip().split("\t")
-                if len(parts) != 3:
-                    continue
-                _, document, label = parts
-                if not document.strip():  # 빈 리뷰 제거
-                    continue
-                rows.append({"text": document.strip(), "label": int(label)})
-        return rows
-
-    all_train = read_tsv(train_tsv_path)
+    train_rows = _read_nsmc_tsv(train_tsv_path)
+    test_rows = _read_nsmc_tsv(test_tsv_path) if test_tsv_path is not None else []
 
     rng = random.Random(seed)
-    rng.shuffle(all_train)
+    rng.shuffle(train_rows)
 
-    n_val = max(1, int(len(all_train) * val_ratio))
-    val_data = all_train[:n_val]
-    train_data = all_train[n_val:]
+    if val_ratio <= 0 or len(train_rows) <= 1:
+        val_size = 0
+    else:
+        val_size = int(len(train_rows) * val_ratio)
+        val_size = max(1, min(val_size, len(train_rows) - 1))
 
-    test_data = read_tsv(test_tsv_path) if test_tsv_path is not None else []
+    val_rows = train_rows[:val_size]
+    train_rows = train_rows[val_size:]
 
-    return train_data, val_data, test_data
+    if output_dir is not None:
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        _write_jsonl(output_path / "nsmc_sentiment_train.jsonl", train_rows)
+        _write_jsonl(output_path / "nsmc_sentiment_val.jsonl", val_rows)
+        _write_jsonl(output_path / "nsmc_sentiment_test.jsonl", test_rows)
+
+    return train_rows, val_rows, test_rows
 
 
 class ReviewSentimentDataset(Dataset):
@@ -70,23 +98,28 @@ class ReviewSentimentDataset(Dataset):
         self.max_length = max_length
         self.pad_id = tokenizer.get_pad_id() if pad_id is None else pad_id
 
+        input_rows = []
+        labels = []
+
+        for item in data:
+            token_ids = tokenizer.encode(item["text"], add_bos_eos=True)
+            token_ids = token_ids[: self.max_length]
+
+            if len(token_ids) < self.max_length:
+                token_ids = token_ids + [self.pad_id] * (self.max_length - len(token_ids))
+
+            input_rows.append(token_ids)
+            labels.append(int(item["label"]))
+
+        self.input_ids = torch.tensor(input_rows, dtype=torch.long)
+        self.labels = labels
+
     def __len__(self) -> int:
         return len(self.data)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
         """TODO: text를 encode하고 max_length까지 자르거나 padding한 뒤 label과 함께 반환합니다."""
-        item = self.data[idx]
-        ids = self.tokenizer.encode(item["text"], add_bos_eos=False)
-
-        # max_length보다 길면 자르기
-        ids = ids[: self.max_length]
-
-        # max_length보다 짧으면 pad_id로 패딩
-        pad_len = self.max_length - len(ids)
-        ids = ids + [self.pad_id] * pad_len
-
-        input_ids = torch.tensor(ids, dtype=torch.long)
-        return input_ids, item["label"]
+        return self.input_ids[idx], self.labels[idx]
 
 
 class GPTForSequenceClassification(nn.Module):
@@ -118,7 +151,7 @@ class GPTForSequenceClassification(nn.Module):
         labels: torch.Tensor | None = None,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """
-        TODO: GPT hidden state에서 문장 대표 벡터를 뽑아 분류 logits를 만듭니다.
+        GPT hidden state에서 문장 대표 벡터를 뽑아 분류 logits를 만듭니다.
 
         labels가 있으면 (loss, logits), 없으면 logits를 반환합니다.
         """

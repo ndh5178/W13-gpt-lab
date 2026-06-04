@@ -16,24 +16,18 @@ class InputEmbedding(nn.Module):
     - dropout
     """
 
-    def __init__(
-        self,
-        vocab_size: int,
-        emb_dim: int,
-        context_length: int,
-        drop_rate: float = 0.1,
-    ):
+    def __init__(self, vocab_size: int,emb_dim: int, context_length: int, drop_rate: float = 0.1,):
         super().__init__()
         self.emb_dim = emb_dim
         self.context_length = context_length
-        # TODO: token_embedding, position_embedding, dropout을 정의하세요.
-        self.token_embedding = nn.Embedding(vocab_size, emb_dim)
+        #  token_embedding, position_embedding, dropout을 정의하세요.
+        self.token_embedding = nn.Embedding(vocab_size, emb_dim)      #nn. torch 안에 있는 신경망 부품 모음집 호출
         self.position_embedding = nn.Embedding(context_length, emb_dim)
         self.dropout = nn.Dropout(drop_rate)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        TODO: token embedding과 position embedding을 더한 뒤 dropout을 적용합니다.
+         token embedding과 position embedding을 더한 뒤 dropout을 적용합니다.
 
         Args:
             x: (batch_size, seq_len) token IDs
@@ -43,10 +37,10 @@ class InputEmbedding(nn.Module):
         """
         batch_size, seq_len = x.shape
 
-        token_embeds = self.token_embedding(x)
+        token_emb = self.token_embedding(x)
 
-        position_ids = torch.arange(seq_len, device=x.device)
-        position_embeds = self.position_embedding(position_ids)
+        positions = torch.arange(seq_len, device=x.device)
+        pos_emb = self.position_embedding(positions)
 
         x = token_embeds + position_embeds
         x = self.dropout(x)

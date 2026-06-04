@@ -14,12 +14,7 @@ class GPTDataset(Dataset):
     - target: [11, 12, 13]
     """
 
-    def __init__(
-        self,
-        token_ids: list[int],
-        context_length: int,
-        stride: int | None = None,
-    ):
+    def __init__(self, token_ids: list[int], context_length: int, stride: int | None = None,):
         self.token_ids = token_ids
         self.context_length = context_length
         self.stride = stride if stride is not None else context_length
@@ -32,12 +27,12 @@ class GPTDataset(Dataset):
             self._length = available // self.stride + 1
 
     def __len__(self) -> int:
-        """TODO: 전체 샘플 개수를 반환합니다."""
+        """ 전체 샘플 개수를 반환합니다."""
         return self._length
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        TODO: idx번째 input_ids와 target_ids를 LongTensor로 반환합니다.
+         idx번째 input_ids와 target_ids를 LongTensor로 반환합니다. #longTensor -> pytorch가 받아들일 수 있는 타입으로 변형해주는 것
 
         Returns:
             input_ids: (context_length,)
@@ -62,15 +57,16 @@ def create_dataloader(
     drop_last: bool = False,
     shuffle: bool = True,
     num_workers: int = 0,
+    pin_memory: bool = False,
 ) -> DataLoader:
-    """TODO: GPTDataset을 만들고 torch.utils.data.DataLoader로 감싸 반환합니다."""
-    dataset = GPTDataset(token_ids, context_length, stride)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        drop_last=drop_last,
-        num_workers=num_workers,
-    )
+    """ GPTDataset을 만들고 torch.utils.data.DataLoader로 감싸 반환합니다."""
+    dataset = GPTDataset(token_ids, context_length, stride=stride)
 
-    return dataloader
+    return DataLoader(
+        dataset,
+        batch_size = batch_size,
+        drop_last = drop_last,
+        shuffle = shuffle,
+        num_workers = num_workers,
+        pin_memory = pin_memory,
+    )

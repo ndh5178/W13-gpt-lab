@@ -3,7 +3,7 @@
 
 import torch
 import torch.nn as nn
-
+import math
 
 class MultiHeadAttention(nn.Module):
     """
@@ -22,7 +22,7 @@ class MultiHeadAttention(nn.Module):
         d_model: int,
         n_heads: int,
         drop_rate: float = 0.1,
-        qkv_bias: bool = False,
+        qkv_bias: bool = False,    #bias는 편향값 현재 기본 code가 False를 주고 있기에 편향값을 사용하지 않는다는 뜻이다.
     ):
         super().__init__()
         if d_model % n_heads != 0:
@@ -31,10 +31,10 @@ class MultiHeadAttention(nn.Module):
         self.n_heads = n_heads
         self.head_dim = d_model // n_heads
         # TODO: qkv projection, output projection, dropout을 정의하세요.
-        self.q_proj = nn.Linear(d_model, d_model, bias=qkv_bias)
-        self.k_proj = nn.Linear(d_model, d_model, bias=qkv_bias)
-        self.v_proj = nn.Linear(d_model, d_model, bias=qkv_bias)
-        self.out_proj = nn.Linear(d_model, d_model)
+        self.q_projection = nn.Linear(d_model, d_model, bias=qkv_bias)
+        self.k_projection = nn.Linear(d_model, d_model, bias=qkv_bias)
+        self.v_projection = nn.Linear(d_model, d_model, bias=qkv_bias)
+        self.out_projection = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(drop_rate)
 
     def forward(
@@ -44,41 +44,43 @@ class MultiHeadAttention(nn.Module):
         return_attention_weights: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """
-        TODO: multi-head attention forward를 구현합니다.
+         multi-head attention forward를 구현합니다.
 
         Args:
             x: (batch_size, seq_len, d_model)
             causal_mask: True이면 미래 위치를 볼 수 없게 mask 처리
             return_attention_weights: True이면 attention weight도 함께 반환
         """
-        B, T, C = x.shape
+        batch_size, seq_len, d_model = x.shape
 
-        q = self.q_proj(x)
-        k = self.k_proj(x)
-        v = self.v_proj(x)
+        q = self.q_projection(x)
+        k = self.k_projection(x)
+        v = self.v_projection(x)
 
-        q = q.view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
-        k = k.view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
-        v = v.view(B, T, self.n_heads, self.head_dim).transpose(1, 2)
+        q = q.reshape(batch_size, seq_len, self.n_heads, self.head_dim)
+        q = q.transpose(1, 2)
 
-        attn_scores = q @ k.transpose(-2, -1)
-        attn_scores = attn_scores / (self.head_dim ** 0.5)
+        k = k.reshape(batch_size, seq_len, self.n_heads, self.head_dim)
+        k = k.transpose(1, 2)
 
+        v = v.reshape(batch_size, seq_len, self.n_heads, self.head_dim)
+        v = v.transpose(1, 2)
+
+        attn_scores = (q @ k.transpose(-2, -1)) / (self.head_dim**0.5)
+        
         if causal_mask:
-            mask = torch.triu(torch.ones(T, T, device=x.device), diagonal=1).bool()
+            mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device, dtype=torch.bool), diagonal=1)
             attn_scores = attn_scores.masked_fill(mask, float("-inf"))
 
         attn_weights = torch.softmax(attn_scores, dim=-1)
         attn_weights = self.dropout(attn_weights)
 
         context = attn_weights @ v
+        context = context.transpose(1, 2).contiguous().view(batch_size, seq_len, d_model)
 
-        context = context.transpose(1, 2)
-        context = context.contiguous().view(B, T, C)
-
-        out = self.out_proj(context)
+        out = self.out_projection(context)
+        out = self.dropout(out)
 
         if return_attention_weights:
             return out, attn_weights
-
         return out
