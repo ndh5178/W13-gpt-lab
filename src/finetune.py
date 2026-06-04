@@ -4,6 +4,7 @@
 import csv
 import json
 import random
+import re
 from pathlib import Path
 
 import torch
@@ -117,8 +118,9 @@ class ReviewSentimentDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
-        """미리 encode해 둔 input_ids와 label을 반환합니다."""
+        """TODO: text를 encode하고 max_length까지 자르거나 padding한 뒤 label과 함께 반환합니다."""
         return self.input_ids[idx], self.labels[idx]
+
 
 class GPTForSequenceClassification(nn.Module):
     """
@@ -177,12 +179,12 @@ def train_epoch_sentiment(
     device: torch.device,
 ) -> tuple[float, float]:
     """감성 분류 모델을 1 epoch 훈련하고 (평균 loss, accuracy)를 반환합니다."""
-    model.to(device)
     model.train()
+    model.to(device)
 
     total_loss = 0.0
     total_correct = 0
-    total_examples = 0
+    total_samples = 0
 
     for input_ids, labels in train_loader:
         input_ids = input_ids.to(device)
@@ -193,15 +195,14 @@ def train_epoch_sentiment(
         loss.backward()
         optimizer.step()
 
-        batch_size = labels.size(0)
+        batch_size = input_ids.size(0)
         total_loss += loss.item() * batch_size
         total_correct += (logits.argmax(dim=-1) == labels).sum().item()
-        total_examples += batch_size
+        total_samples += batch_size
 
-    if total_examples == 0:
-        return float("nan"), 0.0
-
-    return total_loss / total_examples, total_correct / total_examples
+    if total_samples == 0:
+        return float("nan"), float("nan")
+    return total_loss / total_samples, total_correct / total_samples
 
 
 def evaluate_sentiment(
@@ -210,13 +211,13 @@ def evaluate_sentiment(
     device: torch.device,
 ) -> tuple[float, float]:
     """감성 분류 모델을 평가하고 (평균 loss, accuracy)를 반환합니다."""
-    model.to(device)
     was_training = model.training
     model.eval()
+    model.to(device)
 
     total_loss = 0.0
     total_correct = 0
-    total_examples = 0
+    total_samples = 0
 
     with torch.no_grad():
         for input_ids, labels in data_loader:
@@ -224,15 +225,15 @@ def evaluate_sentiment(
             labels = labels.to(device).long()
 
             loss, logits = model(input_ids, labels=labels)
-            batch_size = labels.size(0)
+
+            batch_size = input_ids.size(0)
             total_loss += loss.item() * batch_size
             total_correct += (logits.argmax(dim=-1) == labels).sum().item()
-            total_examples += batch_size
+            total_samples += batch_size
 
     if was_training:
         model.train()
 
-    if total_examples == 0:
-        return float("nan"), 0.0
-
-    return total_loss / total_examples, total_correct / total_examples
+    if total_samples == 0:
+        return float("nan"), float("nan")
+    return total_loss / total_samples, total_correct / total_samples

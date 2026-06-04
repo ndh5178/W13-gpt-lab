@@ -1,0 +1,7 @@
+experiment_id,label,changed_value,vocab_size,context_length,batch_size,learning_rate,classification_drop_rate,finetune_epochs,best_epoch,best_val_loss,best_val_acc,test_loss,test_acc,finetune_time,notes
+baseline,10 epochs baseline,none,5000,128,16,0.0001,0.1,10,10,0.4444,0.8100,0.4242,0.8098,503.19,v5000 baseline
+epochs_15,15 epochs,finetune_epochs=15,5000,128,16,0.0001,0.1,15,14,0.4207,0.8166,0.3900,0.8250,819.35,epoch increase experiment
+lr_2e4,lr 2e-4,learning_rate=2e-4,5000,128,16,0.0002,0.1,15,15,0.4170,0.8302,0.3936,0.8340,759.34,learning rate increase experiment
+lr_3e4,lr 3e-4,learning_rate=3e-4,5000,128,16,0.0003,0.1,15,10,0.4063,0.8270,0.3795,0.8370,788.15,learning rate 3x increase experiment
+lr_4e4,lr 4e-4,learning_rate=4e-4,5000,128,16,0.0004,0.1,15,12,0.4319,0.8296,0.4062,0.8324,735.04,learning rate 4x increase experiment
+train_100k_lr_3e4,train 100k,train_size=100000,5000,128,16,0.0003,0.1,15,15,0.4077,0.8442,0.3766,0.8468,1519.23,train size increase experiment
