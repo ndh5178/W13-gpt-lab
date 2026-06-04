@@ -26,10 +26,9 @@ class LayerNorm(nn.Module):
         """TODO: 마지막 차원의 평균과 분산으로 정규화한 뒤 gamma/beta를 적용합니다."""
         mean = x.mean(dim=-1, keepdim=True)
         var = x.var(dim=-1, keepdim=True, unbiased=False)
-
         x_norm = (x - mean) / torch.sqrt(var + self.eps)
-
-        return self.gamma * x_norm + self.beta
+        out = self.gamma * x_norm + self.beta
+        return out
 
 
 class GELU(nn.Module):
@@ -73,24 +72,27 @@ class TransformerBlock(nn.Module):
     ):
         super().__init__()
         # TODO: attention, ffn, layernorm, dropout을 정의하세요.
-        self.norm1 = LayerNorm(d_model)
         self.attention = MultiHeadAttention(
             d_model=d_model,
             n_heads=n_heads,
             drop_rate=drop_rate,
             qkv_bias=qkv_bias,
         )
-        self.norm2 = LayerNorm(d_model)
-        self.ffn = FeedForward(d_model, dropout=drop_rate)
-        self.dropout = nn.Dropout(drop_rate)
+
+        self.ffn = FeedForward(
+            d_model=d_model,
+            dropout=drop_rate,
+        )
+
+        self.layernorm1 = LayerNorm(d_model)
+        self.layernorm2 = LayerNorm(d_model)
+
+        self.dropout = nn.Dropout(drop_rate) 
 
     def forward(self, x: torch.Tensor, causal_mask: bool = True) -> torch.Tensor:
         """TODO: attention과 ffn을 residual connection으로 연결합니다."""
-        attn_out = self.attention(self.norm1(x), causal_mask=causal_mask)
-        if isinstance(attn_out, tuple):
-            attn_out = attn_out[0]
-        x = x + self.dropout(attn_out)
-        x = x + self.dropout(self.ffn(self.norm2(x)))
+        x = x + self.dropout(self.attention(self.layernorm1(x), causal_mask=causal_mask))
+        x = x + self.dropout(self.ffn(self.layernorm2(x)))
         return x
 
 
@@ -148,6 +150,8 @@ class GPTModel(nn.Module):
         )
         return loss, logits
 
+        return loss, logits
+        
 
 def generate_text_simple(
     model: GPTModel,

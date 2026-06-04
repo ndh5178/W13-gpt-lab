@@ -20,16 +20,7 @@ def calc_loss_batch(
     """TODO: 한 배치를 device로 옮긴 뒤 다음 토큰 예측 cross entropy loss를 계산합니다."""
     input_batch = input_batch.to(device)
     target_batch = target_batch.to(device)
-
-    result = model(input_batch, targets=target_batch)
-    if isinstance(result, tuple):
-        loss = result[0]
-    else:
-        logits = result
-        loss = F.cross_entropy(
-            logits.reshape(-1, logits.size(-1)),
-            target_batch.reshape(-1),
-        )
+    loss, _ = model(input_batch, targets=target_batch)
     return loss
 
 
@@ -40,27 +31,21 @@ def calc_loss_loader(
     num_batches: int | None = None,
 ) -> float:
     """TODO: data_loader의 평균 loss를 계산합니다. 검증에서는 torch.no_grad()를 사용하세요."""
+    total_loss = 0.0
+    n = 0
     was_training = model.training
     model.eval()
-
-    total_loss = 0.0
-    num_seen = 0
-    max_batches = len(data_loader) if num_batches is None else num_batches
-
     with torch.no_grad():
-        for batch_idx, (input_batch, target_batch) in enumerate(data_loader):
-            if batch_idx >= max_batches:
+        for i, (input_batch, target_batch) in enumerate(data_loader):
+            if num_batches is not None and i >= num_batches:
                 break
             loss = calc_loss_batch(input_batch, target_batch, model, device)
             total_loss += loss.item()
-            num_seen += 1
-
+            n += 1
+    
     if was_training:
         model.train()
-
-    if num_seen == 0:
-        return float("nan")
-    return total_loss / num_seen
+    return total_loss / n if n > 0 else 0.0
 
 
 def save_checkpoint(

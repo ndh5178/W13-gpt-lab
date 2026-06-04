@@ -17,13 +17,7 @@ class MultiHeadAttention(nn.Module):
     - attention weight와 V를 곱한 뒤 head를 다시 합치기
     """
 
-    def __init__(
-        self,
-        d_model: int,
-        n_heads: int,
-        drop_rate: float = 0.1,
-        qkv_bias: bool = False,
-    ):
+    def __init__(self, d_model: int, n_heads: int, drop_rate: float = 0.1, qkv_bias: bool = False):
         super().__init__()
         if d_model % n_heads != 0:
             raise ValueError("d_model must be divisible by n_heads")

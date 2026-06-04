@@ -4,6 +4,7 @@ data/ratings_test.txt
 data/nsmc_lm_*.txt
 data/nsmc_sentiment_*.jsonl
 data/vocab_*.json
+data/nsmc_bpe_vocab_*.json
 data/*vocab*.json
 data/*.jsonl
 

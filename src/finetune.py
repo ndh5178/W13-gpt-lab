@@ -6,6 +6,8 @@ import json
 import random
 import re
 from pathlib import Path
+import json
+import random
 
 import torch
 import torch.nn as nn
@@ -112,7 +114,7 @@ class ReviewSentimentDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
-        """text를 encode하고 max_length까지 자르거나 padding한 뒤 label과 함께 반환합니다."""
+        """TODO: text를 encode하고 max_length까지 자르거나 padding한 뒤 label과 함께 반환합니다."""
         return self.input_ids[idx], self.labels[idx]
 
 
@@ -132,6 +134,7 @@ class GPTForSequenceClassification(nn.Module):
         super().__init__()
         self.gpt = gpt_model
         self.num_labels = num_labels
+        # TODO: dropout과 classifier를 정의하세요. classifier 입력 차원은 gpt_model.config["emb_dim"]입니다.
         self.dropout = nn.Dropout(drop_rate)
         self.classifier = nn.Linear(gpt_model.config["emb_dim"], num_labels)
 
