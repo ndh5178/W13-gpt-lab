@@ -42,7 +42,6 @@ class InputEmbedding(nn.Module):
         positions = torch.arange(seq_len, device=x.device)
         pos_emb = self.position_embedding(positions)
 
-        out = token_emb + pos_emb
-        out = self.dropout(out)
-
-        return out
+        x = token_embeds + position_embeds
+        x = self.dropout(x)
+        return x

@@ -8,7 +8,6 @@ UTF-8 byte-level BPE 토크나이저 과제 템플릿.
 """
 import json
 from pathlib import Path
-import json
 
 PAD_TOKEN = "<pad>"
 UNK_TOKEN = "<unk>"
@@ -82,6 +81,11 @@ class BPETokenizer:
         - 새 token ID를 만들고, 시퀀스의 해당 pair를 새 ID로 치환합니다.
         - `self.merges`, `self.id_to_token`, `self.token_to_id`를 갱신합니다.
         """
+        self.id_to_token = {}
+        self.token_to_id = {}
+        self.merges = []
+        self._init_special_tokens()
+
         id_corpus=[]
         
         for token in list(corpus.encode("utf-8")):
@@ -256,7 +260,7 @@ class BPETokenizer:
             if skip_special and token in SPECIAL_IDS.values():
                 continue
             skip_ids.append(token)
-        
+
         i=0
         while i < len(skip_ids):
             if skip_ids[i]>259:
@@ -264,7 +268,7 @@ class BPETokenizer:
                 skip_ids[i:i+1]=origin_token
             else:
                 i+=1
-        
+
         for j in range(len(skip_ids)):
             skip_ids[j]-=4
 

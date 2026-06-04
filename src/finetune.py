@@ -134,13 +134,16 @@ class GPTForSequenceClassification(nn.Module):
         gpt_model: GPTModel,
         num_labels: int = 2,
         drop_rate: float = 0.1,
+        pad_id: int = 0,
     ):
         super().__init__()
         self.gpt = gpt_model
         self.num_labels = num_labels
-        self.pad_id = 0
+        self.pad_id = pad_id
+        # TODO: dropout과 classifier를 정의하세요. classifier 입력 차원은 gpt_model.config["emb_dim"]입니다.
+        emb_dim = gpt_model.config["emb_dim"]
         self.dropout = nn.Dropout(drop_rate)
-        self.classifier = nn.Linear(gpt_model.config["emb_dim"], num_labels)
+        self.classifier = nn.Linear(emb_dim, num_labels)
 
     def forward(
         self,
@@ -152,24 +155,25 @@ class GPTForSequenceClassification(nn.Module):
 
         labels가 있으면 (loss, logits), 없으면 logits를 반환합니다.
         """
-        hidden = self.gpt.embedding(input_ids)
+        # embedding → blocks → norm 까지만 실행 (lm_head 제외)
+        x = self.gpt.embedding(input_ids)
         for block in self.gpt.blocks:
-            hidden = block(hidden, causal_mask=True)
-        hidden = self.gpt.final_norm(hidden)
+            x = block(x)
+        x = self.gpt.norm(x)
 
-        non_pad_counts = (input_ids != self.pad_id).sum(dim=1)
-        last_token_idx = torch.clamp(non_pad_counts - 1, min=0)
+        # 마지막 non-pad 토큰 위치의 벡터를 문장 대표 벡터로 사용
+        non_pad = input_ids.ne(self.pad_id)
+        last_token_idx = non_pad.long().sum(dim=1).clamp(min=1) - 1
         batch_idx = torch.arange(input_ids.size(0), device=input_ids.device)
-        pooled = hidden[batch_idx, last_token_idx]
+        x = x[batch_idx, last_token_idx]           # (B, emb_dim)
+        x = self.dropout(x)
+        logits = self.classifier(x)    # (B, num_labels)
 
-        logits = self.classifier(self.dropout(pooled))
+        if labels is not None:
+            loss = nn.functional.cross_entropy(logits, labels)
+            return loss, logits
 
-        if labels is None:
-            return logits
-
-        labels = labels.long()
-        loss = F.cross_entropy(logits, labels)
-        return loss, logits
+        return logits
 
 
 def train_epoch_sentiment(
@@ -178,31 +182,29 @@ def train_epoch_sentiment(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
 ) -> tuple[float, float]:
-    """감성 분류 모델을 1 epoch 훈련하고 (평균 loss, accuracy)를 반환합니다."""
+    """TODO: 감성 분류 모델을 1 epoch 훈련하고 (평균 loss, accuracy)를 반환합니다."""
     model.train()
-    model.to(device)
-
     total_loss = 0.0
-    total_correct = 0
-    total_samples = 0
+    correct = 0
+    total = 0
 
     for input_ids, labels in train_loader:
         input_ids = input_ids.to(device)
-        labels = labels.to(device).long()
+        labels = labels.to(device)
 
         optimizer.zero_grad()
         loss, logits = model(input_ids, labels=labels)
         loss.backward()
         optimizer.step()
 
-        batch_size = input_ids.size(0)
-        total_loss += loss.item() * batch_size
-        total_correct += (logits.argmax(dim=-1) == labels).sum().item()
-        total_samples += batch_size
+        total_loss += loss.item()
+        preds = logits.argmax(dim=-1)
+        correct += (preds == labels).sum().item()
+        total += labels.size(0)
 
-    if total_samples == 0:
-        return float("nan"), float("nan")
-    return total_loss / total_samples, total_correct / total_samples
+    avg_loss = total_loss / len(train_loader) if len(train_loader) > 0 else 0.0
+    accuracy = correct / total if total > 0 else 0.0
+    return avg_loss, accuracy
 
 
 def evaluate_sentiment(
@@ -210,30 +212,28 @@ def evaluate_sentiment(
     data_loader,
     device: torch.device,
 ) -> tuple[float, float]:
-    """감성 분류 모델을 평가하고 (평균 loss, accuracy)를 반환합니다."""
+    """TODO: 감성 분류 모델을 평가하고 (평균 loss, accuracy)를 반환합니다."""
     was_training = model.training
     model.eval()
-    model.to(device)
-
     total_loss = 0.0
-    total_correct = 0
-    total_samples = 0
+    correct = 0
+    total = 0
 
-    with torch.no_grad():
-        for input_ids, labels in data_loader:
-            input_ids = input_ids.to(device)
-            labels = labels.to(device).long()
+    try:
+        with torch.no_grad():
+            for input_ids, labels in data_loader:
+                input_ids = input_ids.to(device)
+                labels = labels.to(device)
 
-            loss, logits = model(input_ids, labels=labels)
+                loss, logits = model(input_ids, labels=labels)
+                total_loss += loss.item()
+                preds = logits.argmax(dim=-1)
+                correct += (preds == labels).sum().item()
+                total += labels.size(0)
+    finally:
+        if was_training:
+            model.train()
 
-            batch_size = input_ids.size(0)
-            total_loss += loss.item() * batch_size
-            total_correct += (logits.argmax(dim=-1) == labels).sum().item()
-            total_samples += batch_size
-
-    if was_training:
-        model.train()
-
-    if total_samples == 0:
-        return float("nan"), float("nan")
-    return total_loss / total_samples, total_correct / total_samples
+    avg_loss = total_loss / len(data_loader) if len(data_loader) > 0 else 0.0
+    accuracy = correct / total if total > 0 else 0.0
+    return avg_loss, accuracy
