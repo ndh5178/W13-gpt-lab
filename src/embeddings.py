@@ -50,3 +50,4 @@ class InputEmbedding(nn.Module):
 
         x = token_embeds + position_embeds
         x = self.dropout(x)
+        return x

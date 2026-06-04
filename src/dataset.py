@@ -26,8 +26,8 @@ class GPTDataset(Dataset):
         # TODO: 만들 수 있는 학습 샘플 개수를 self._length에 저장하세요.
         available = len(self.token_ids) - self.context_length - 1
 
-        if available < 0 :
-            self.context_length = 0
+        if available < 0:
+            self._length = 0
         else:
             self._length = available // self.stride + 1
 
